@@ -2,6 +2,47 @@
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+// Workout class
+class Workout {
+    date = new Date();
+    id = (Date.now() + '').slice(-10);
+
+    constructor(coords, distance, duration) {
+        this.coords = coords; // [lat, long]
+        this.distance = distance; // in km
+        this.duration = duration; // in minutes
+    }
+}
+
+// Child classes 
+class Running extends Workout {
+    type = 'running';
+    constructor(coords, distance, duration, cadence) {
+        super(coords, distance, duration);
+        this.cadence = cadence;
+        this.calcPace();
+    }
+
+    calcPace() {
+        this.pace = this.duration / this.distance;
+    }
+}
+
+class Cycling extends Workout {
+    type = 'cycling';
+    constructor(coords, distance, duration, elevationGain) {
+        super(coords, distance, duration);
+        this.elevationGain = elevationGain;
+        this.calcSpeed();
+    }
+
+    calcSpeed() {
+        this.speed = this.distance / (this.duration / 60);
+    }
+}
+
+//--------------------------------------------------//
+// Application architecture
 const form = document.querySelector('.form');
 const containerWorkouts = document.querySelector('.workouts');
 const inputType = document.querySelector('.form__input--type');
@@ -13,6 +54,7 @@ const inputElevation = document.querySelector('.form__input--elevation');
 class App {
     #map;
     #mapEvent;
+    #workouts = [];
 
     constructor() {
         this._getPosition();
@@ -62,15 +104,55 @@ class App {
     }
 
     _newWorkout(e) {
-        e.preventDefault();
-    
-        // Clear form inputs
-        inputDistance.value = inputDuration.value = inputCadence.value = inputElevation.value = "";
+        // Helpers functions
+        const validateInputs = (...inputs) => inputs.every(inp => Number.isFinite(inp));
+        const allPositive = (...inputs) => inputs.every(inp => inp > 0);
 
-        // Display marker
+        e.preventDefault();
+
+        // Get data from the form
+        const type = inputType.value;
+        const distance = +inputDistance.value;
+        const duration = +inputDuration.value;
         const { lat, lng } = this.#mapEvent.latlng;
-    
-        L.marker([lat, lng])
+        let workout;
+
+        // If workout is running, creating running object
+        if (type === 'running') {
+            const cadence = +inputCadence.value;
+
+            if (!validateInputs(distance, duration, cadence) || !allPositive(distance, duration, cadence))
+            return alert('Inputs have to be positive numbers.');
+
+            workout = new Running([lat, lng], distance, duration, cadence);
+        }
+
+        // If workout is cycling, creating cycling object
+        if (type === 'cycling') {
+            const elevation = +inputElevation.value;
+
+            if (!validateInputs(distance, duration, elevation) || !allPositive(distance, duration))
+            return alert('Inputs have to be positive numbers.');
+
+            workout = new Cycling([lat, lng], distance, duration, elevation);
+        }
+
+        // Add new object to workout array
+        this.#workouts.push(workout);
+        //console.log(workout);
+
+        // Render workout on map as marker
+        this.renderWorkoutMarker(workout);
+
+        // Render workout in the left list
+
+
+        // Hide form + clear input fields
+        inputDistance.value = inputDuration.value = inputCadence.value = inputElevation.value = "";
+    }
+
+    renderWorkoutMarker(workout) { 
+        L.marker(workout.coords)
             .addTo(this.#map)
             .bindPopup(
                 L.popup({
@@ -78,10 +160,10 @@ class App {
                     minWidth: 100,
                     autoClose: false,
                     closeOnClick: false,
-                    className: 'running-popup',
+                    className: `${workout.type}-popup`,
             })
         )
-        .setPopupContent('Workout')
+        .setPopupContent('workout')
         .openPopup();
     }
 }
